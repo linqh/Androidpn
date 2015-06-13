@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="  
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.1.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.1.xsd
+		http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-4.1.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.1.xsd">
+
+
+	<!-- =============================================================== -->
+	<!-- Resources -->
+	<!-- =============================================================== -->
+	<bean id="propertyConfigurer"
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>
+				<value>classpath:jdbc.properties</value>
+			</list>
+		</property>
+	</bean>
+
+	<!-- =============================================================== -->
+	<!-- Data Source -->
+	<!-- =============================================================== -->
+
+	<!-- 数据库连接池c3p0配置 -->
+	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource"
+		destroy-method="close">
+		<property name="jdbcUrl" value="${jdbc-0.proxool.driver-url}"></property>
+		<property name="driverClass" value="${jdbc-0.proxool.driver-class}"></property>
+		<property name="user" value="${jdbc-0.user}"></property>
+		<property name="password" value="${jdbc-0.password}"></property>
+		<property name="maxPoolSize" value="${jdbc-0.maxPoolSize}"></property>
+		<property name="minPoolSize" value="${jdbc-0.minPoolSize}"></property>
+		<property name="initialPoolSize" value="${jdbc-0.initialPoolSize}"></property>
+		<property name="acquireIncrement" value="${jdbc-0.acquireIncrement}"></property>
+		<property name="idleConnectionTestPeriod" value="${jdbc-0.idleConnectionTestPeriod}"></property>
+	</bean>
+
+	<!-- =============================================================== -->
+	<!-- Hibernate -->
+	<!-- =============================================================== -->
+
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="packagesToScan">
+			<list>
+				<value>org.androidpn.server.model</value>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="transactionManager"
+		class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+	<!-- =============================================================== -->
+	<!-- Data Access Objects -->
+	<!-- =============================================================== -->
+
+	<bean id="userDao" class="org.androidpn.server.dao.hibernate.UserDaoHibernate">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+	<!-- =============================================================== -->
+	<!-- Services -->
+	<!-- =============================================================== -->
+
+	<bean id="userService" class="org.androidpn.server.service.impl.UserServiceImpl">
+		<property name="userDao" ref="userDao" />
+	</bean>
+
+	<!-- =============================================================== -->
+	<!-- SSL -->
+	<!-- =============================================================== -->
+
+	<!-- <bean id="tlsContextFactory" class="org.androidpn.server.ssl2.ResourceBasedTLSContextFactory"> 
+		<constructor-arg value="classpath:bogus_mina_tls.cert" /> <property name="password" 
+		value="boguspw" /> <property name="trustManagerFactory"> <bean class="org.androidpn.server.ssl2.BogusTrustManagerFactory" 
+		/> </property> </bean> -->
+
+	<!-- =============================================================== -->
+	<!-- MINA -->
+	<!-- =============================================================== -->
+
+	<bean class="org.springframework.beans.factory.config.CustomEditorConfigurer">
+		<property name="customEditors">
+			<map>
+				<entry key="java.net.SocketAddress"
+					value="org.apache.mina.integration.beans.InetSocketAddressEditor" />
+			</map>
+		</property>
+	</bean>
+
+	<bean id="xmppHandler" class="org.androidpn.server.xmpp.net.XmppIoHandler" />
+
+	<bean id="filterChainBuilder"
+		class="org.apache.mina.core.filterchain.DefaultIoFilterChainBuilder">
+		<property name="filters">
+			<map>
+				<entry key="executor">
+					<bean class="org.apache.mina.filter.executor.ExecutorFilter" />
+				</entry>
+				<entry key="codec">
+					<bean class="org.apache.mina.filter.codec.ProtocolCodecFilter">
+						<constructor-arg>
+							<bean class="org.androidpn.server.xmpp.codec.XmppCodecFactory" />
+						</constructor-arg>
+					</bean>
+				</entry>
+				<!-- <entry key="logging"> <bean class="org.apache.mina.filter.logging.LoggingFilter" 
+					/> </entry> -->
+			</map>
+		</property>
+	</bean>
+
+	<bean id="ioAcceptor" class="org.apache.mina.transport.socket.nio.NioSocketAcceptor"
+		init-method="bind" destroy-method="unbind">
+		<property name="defaultLocalAddress" value=":5222" />
+		<property name="handler" ref="xmppHandler" />
+		<property name="filterChainBuilder" ref="filterChainBuilder" />
+		<property name="reuseAddress" value="true" />
+	</bean>
+
+</beans>
